@@ -39,17 +39,18 @@
 #endif
 
 #ifndef MQTT_BROKER_IP
-#define MQTT_BROKER_IP "192.168.0.100"
+#define MQTT_BROKER_IP "127.0.0.1"
 #endif
 
 #ifndef MQTT_BROKER_PORT
-#define MQTT_BROKER_PORT 1883
+#define MQTT_BROKER_PORT 1884
 #endif
 
 // --- Sensores e tempos ---
 #define LUZ_MAXIMA_ESTUFA 2000.0
 #define TEMPO_MSG_BEM_VINDO_US 2500000
 #define TEMPO_MSG_IRRIGACAO_FIM_US 1500000
+#define TEMPO_IRRIGACAO_S 10 // duracao da irrigacao em segundos
 
 // --- Topicos MQTT ---
 #define TOPICO_BASE_COMANDO_ESTADO "comando/estado"

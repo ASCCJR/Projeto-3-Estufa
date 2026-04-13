@@ -218,7 +218,7 @@ void handle_modo_irrigacao() {
         display_show_message("Irrigacao Ativada", "Iniciando...", NULL);
         rgb_led_set_color(0, 0, PWM_MAX_DUTY); // Azul
         matriz_iniciar_animacao_agua();
-        timer_iniciar(&sistema.timer_geral, 10 * 1000000); // 10s
+        timer_iniciar(&sistema.timer_geral, TEMPO_IRRIGACAO_S * 1000000);
         sistema.modo_foi_inicializado = true;
         servo_start_move(30);
         timer_iniciar(&sistema.timer_irrigador_servo, 1500000);
@@ -233,7 +233,7 @@ void handle_modo_irrigacao() {
     }
     if (timer_expirou(&sistema.timer_display_update) || !sistema.timer_display_update.ativo) {
         int64_t diff_us = absolute_time_diff_us(sistema.timer_geral.inicio, get_absolute_time());
-        int tempo_restante_s = 10 - (diff_us / 1000000);
+        int tempo_restante_s = TEMPO_IRRIGACAO_S - (diff_us / 1000000);
         if (tempo_restante_s < 0) tempo_restante_s = 0;
         char linha2_display[25];
         sprintf(linha2_display, "Restam: %ds", tempo_restante_s);

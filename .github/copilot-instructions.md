@@ -97,24 +97,27 @@ Boas praticas:
   - publicar em um topico de teste;
   - assinar o mesmo topico e validar recebimento.
 
-Exemplo de teste rapido (ajustar porta para 1884 se necessario):
-- Subscriber: `mosquitto_sub -h 127.0.0.1 -p 1883 -t copilot/test -C 1`
-- Publisher: `mosquitto_pub -h 127.0.0.1 -p 1883 -t copilot/test -m ok`
+Exemplo de teste rapido (porta padrao do projeto: 1884):
+- Subscriber: `mosquitto_sub -h 127.0.0.1 -p 1884 -t copilot/test -C 1`
+- Publisher: `mosquitto_pub -h 127.0.0.1 -p 1884 -t copilot/test -m ok`
 
-  ### Troubleshooting Wi-Fi e MQTT (obrigatorio quando travar em "Conectando MQTT")
+### Troubleshooting Wi-Fi e MQTT (obrigatorio quando travar em "Conectando MQTT")
 
-  Se a placa sair de Wi-Fi e ficar presa em "Conectando MQTT", a IA deve:
+Se a placa sair de Wi-Fi e ficar presa em "Conectando MQTT", a IA deve:
 
-  1. Verificar IP atual da maquina host e confirmar se bate com `MQTT_BROKER_IP` (preferir `configura_local.h`).
-  2. Confirmar que o broker esta escutando em rede local, e nao apenas localhost.
-    - Se `Get-NetTCPConnection` mostrar apenas `127.0.0.1`/`::1`, a Pico nao conseguira conectar.
-  3. Quando houver permissao de administrador, ajustar `mosquitto.conf` para listener em rede local (ex.: `listener 1883 0.0.0.0`) e reiniciar servico.
-  4. Quando NAO houver permissao de administrador, usar fallback sem admin:
-    - subir broker local com `mosquitto.local.conf` em porta 1884 (`listener 1884 0.0.0.0`, `allow_anonymous true`);
-    - ajustar `MQTT_BROKER_PORT` em `configura_local.h` para 1884;
-    - ajustar broker do Node-RED para 1884.
-  5. Rodar broker em modo verboso e validar log de conexao do cliente (mensagem tipo `New client connected ... bitdoglab_02_client`).
-  6. Se ainda falhar, testar hotspot 2.4 GHz no celular e verificar isolamento de clientes (AP/client isolation).
+1. Verificar IP atual da maquina host e confirmar se bate com `MQTT_BROKER_IP` (preferir `configura_local.h`).
+   - Descobrir IP no Windows: `ipconfig` (linha `Endereco IPv4` na interface Wi-Fi ativa).
+   - Em PowerShell: `(Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -like "*Wi-Fi*"}).IPAddress`
+   - O IP muda a cada reconexao de rede; sempre reconfirmar antes de recompilar.
+2. Confirmar que o broker esta escutando em rede local, e nao apenas localhost.
+   - Se `Get-NetTCPConnection` mostrar apenas `127.0.0.1`/`::1`, a Pico nao conseguira conectar.
+3. Quando houver permissao de administrador, ajustar `mosquitto.conf` para listener em rede local (ex.: `listener 1883 0.0.0.0`) e reiniciar servico.
+4. Quando NAO houver permissao de administrador, usar fallback sem admin:
+   - subir broker local com `mosquitto.local.conf` em porta 1884 (`listener 1884 0.0.0.0`, `allow_anonymous true`);
+   - ajustar `MQTT_BROKER_PORT` em `configura_local.h` para 1884;
+   - ajustar broker do Node-RED para 1884.
+5. Rodar broker em modo verboso e validar log de conexao do cliente (mensagem tipo `New client connected ... bitdoglab_02_client`).
+6. Se ainda falhar, testar hotspot 2.4 GHz no celular e verificar isolamento de clientes (AP/client isolation).
 
 ## Passo 4: Node-RED
 
@@ -167,8 +170,14 @@ Criterio de sucesso:
 
 ## Passo 6: Gravacao na placa (quando hardware conectado)
 
+Como ativar o modo BOOTSEL (obrigatorio para Run Project):
+1. Manter o botao BOOTSEL pressionado (botao pequeno na parte superior da placa Pico/BitDogLab).
+2. Com o botao pressionado, conectar o cabo USB ao computador.
+3. Soltar o botao BOOTSEL — a placa aparece como drive USB `RPI-RP2`.
+4. A task `Run Project` copia o `.uf2` gerado para o drive automaticamente.
+
 Tentar nesta ordem:
-1. Run Project (modo BOOTSEL).
+1. Run Project (modo BOOTSEL, passos acima).
 2. Flash (OpenOCD/CMSIS-DAP).
 
 Se falhar por dispositivo nao detectado:
@@ -177,6 +186,32 @@ Se falhar por dispositivo nao detectado:
 - nao marcar como erro de codigo enquanto build estiver OK.
 
 ## Passo 7: Teste funcional MQTT do firmware
+
+### Mapa de estados do firmware (referencia)
+
+```
+MODO_ESTUFA_OK
+  │ luz > LUZ_MAXIMA_ESTUFA
+  ▼
+MODO_ESTUFA_ALERTA_LUZ  ──── (luz volta ao normal) ────► MODO_ESTUFA_OK
+  │ timer de alerta expira
+  ▼
+MODO_ESTUFA_PROTEGENDO
+  │ servo posicionado (persiana fechada)
+  ▼
+MODO_ESTUFA_PROTEGIDO  ──── (luz <= LUZ_MAXIMA_ESTUFA) ──► MODO_ESTUFA_OK
+
+MODO_ESTUFA_OK
+  │ cmd MQTT: IRRIGAR
+  ▼
+MODO_ESTUFA_IRRIGACAO  (servo oscila, LED azul, timer TEMPO_IRRIGACAO_S)
+  │ timer expira
+  ▼
+MODO_MSG_IRRIGACAO_FIM  (exibe mensagem TEMPO_MSG_IRRIGACAO_FIM_US)
+  │ timer expira
+  ▼
+MODO_ESTUFA_OK
+```
 
 Com firmware gravado e placa ligada:
 - assinar `bitdoglab_02/#` no Node-RED;
