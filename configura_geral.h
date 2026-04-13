@@ -1,6 +1,6 @@
 /**
  * @file configura_geral.h
- * @brief Definições de configuração para o projeto Estufa Inteligente.
+ * @brief Configuracoes globais de hardware, rede, topicos e estados do firmware.
  */
 
 #ifndef CONFIGURA_GERAL_H
@@ -9,7 +9,14 @@
 #include "pico/stdlib.h"
 #include "secrets.h"
 
-// --- Definições de Hardware e Pinos ---
+// --- Override local por maquina (arquivo ignorado no git) ---
+#if defined(__has_include)
+#if __has_include("configura_local.h")
+#include "configura_local.h"
+#endif
+#endif
+
+// --- Hardware: pinos e perifericos ---
 #define LED_R 13
 #define LED_G 11
 #define LED_B 12
@@ -18,32 +25,38 @@
 #define MATRIZ_PIN 7
 #define BOTAO_B_PIN 6
 
-// Display OLED e Sensores I2C
-#define SDA_PIN 14 // I2C1 (Display)
-#define SCL_PIN 15 // I2C1 (Display)
-#define I2C0_SDA_PIN 0 // I2C0 (Sensores AHT10, BH1750)
-#define I2C0_SCL_PIN 1 // I2C0 (Sensores AHT10, BH1750)
+#define SDA_PIN 14
+#define SCL_PIN 15
+#define I2C0_SDA_PIN 0
+#define I2C0_SCL_PIN 1
 
 #define PWM_MAX_DUTY 0xFFFF
 
-// --- Configurações de Rede e MQTT ---
+// --- Rede e MQTT ---
+
+#ifndef DEVICE_ID
 #define DEVICE_ID "bitdoglab_02"
-#define MQTT_BROKER_IP "192.168.0.18"
+#endif
+
+#ifndef MQTT_BROKER_IP
+#define MQTT_BROKER_IP "192.168.0.100"
+#endif
+
+#ifndef MQTT_BROKER_PORT
 #define MQTT_BROKER_PORT 1883
+#endif
 
-// --- Limiares de Sensores ---
+// --- Sensores e tempos ---
 #define LUZ_MAXIMA_ESTUFA 2000.0
-
-// Definições de Timers (em microssegundos)
 #define TEMPO_MSG_BEM_VINDO_US 2500000
 #define TEMPO_MSG_IRRIGACAO_FIM_US 1500000
 
-// --- Tópicos MQTT ---
+// --- Topicos MQTT ---
 #define TOPICO_BASE_COMANDO_ESTADO "comando/estado"
 #define TOPICO_HISTORICO "historico"
 #define TOPICO_HEARTBEAT "heartbeat"
 
-// --- Comandos FIFO ---
+// --- Comandos FIFO inter-core ---
 #define FIFO_CMD_WIFI_CONECTADO 0xFFFE
 #define FIFO_CMD_PUBLICAR_MQTT 0xADD0
 #define FIFO_CMD_MUDAR_ESTADO 0xE5A0
@@ -52,7 +65,7 @@
 #define FIFO_CMD_PUB_SENSOR_UMID 0xADD3
 #define FIFO_CMD_PUB_SENSOR_LUZ 0xADD4
 
-// --- Enumerações de Estado e Tipos ---
+// --- Estados e tipos ---
 enum ModoOperacao {
     MODO_ESTUFA_OK,
     MODO_ESTUFA_ALERTA_LUZ,

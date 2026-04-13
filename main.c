@@ -1,6 +1,7 @@
 /**
  * @file main.c
- * @brief Gerenciamento principal do sistema da Estufa Inteligente.
+ * @brief Firmware principal do BitDogEstufa.
+ * @details Core 0 executa a maquina de estados e perifericos; Core 1 concentra Wi-Fi e MQTT.
  */
 
 #include "configura_geral.h"
@@ -123,8 +124,15 @@ void verificar_fifo() {
         uint16_t comando = pacote >> 16;
         uint16_t valor = pacote & 0xFFFF;
         if (comando == FIFO_CMD_MUDAR_ESTADO) {
-            sistema.modo_atual = (enum ModoOperacao)valor;
-            sistema.modo_foi_inicializado = false;
+            enum ModoOperacao novo_estado = (enum ModoOperacao)valor;
+            if (novo_estado == MODO_ESTUFA_IRRIGACAO &&
+                (sistema.modo_atual == MODO_ESTUFA_IRRIGACAO || sistema.modo_atual == MODO_MSG_IRRIGACAO_FIM)) {
+                return;
+            }
+            if (novo_estado != sistema.modo_atual) {
+                sistema.modo_atual = novo_estado;
+                sistema.modo_foi_inicializado = false;
+            }
         }
     }
 }
@@ -347,14 +355,20 @@ int main() {
         if (timer_expirou(&sistema.timer_leitura_sensor) || !sistema.timer_leitura_sensor.ativo) {
             if (aht10_read_data(i2c0, &dados_sensor)) {
                 uint16_t temp_int = (uint16_t)(dados_sensor.temperature * 100.0f);
-                multicore_fifo_push_blocking((FIFO_CMD_PUB_SENSOR_TEMP << 16) | temp_int);
+                if (multicore_fifo_wready()) {
+                    multicore_fifo_push_blocking((FIFO_CMD_PUB_SENSOR_TEMP << 16) | temp_int);
+                }
                 uint16_t umid_int = (uint16_t)(dados_sensor.humidity * 100.0f);
-                multicore_fifo_push_blocking((FIFO_CMD_PUB_SENSOR_UMID << 16) | umid_int);
+                if (multicore_fifo_wready()) {
+                    multicore_fifo_push_blocking((FIFO_CMD_PUB_SENSOR_UMID << 16) | umid_int);
+                }
             }
             float lux = bh1750_read_lux(i2c0);
             if (lux >= 0) {
                 dados_luminosidade = lux;
-                multicore_fifo_push_blocking((FIFO_CMD_PUB_SENSOR_LUZ << 16) | (uint16_t)lux);
+                if (multicore_fifo_wready()) {
+                    multicore_fifo_push_blocking((FIFO_CMD_PUB_SENSOR_LUZ << 16) | (uint16_t)lux);
+                }
             }
             timer_iniciar(&sistema.timer_leitura_sensor, 10000000); // Leitura a cada 10s
         }
@@ -410,17 +424,34 @@ void funcao_wifi_nucleo1() {
             
             if (comando == FIFO_CMD_PUBLICAR_MQTT) {
                 uint8_t tipo_msg = pacote & 0xFF;
+                bool mensagem_valida = false;
                 switch ((enum MQTT_MSG_TYPE)tipo_msg) {
-                    case MSG_ALARM_LUZ_ON: strcpy(base_topic, "alarme"); strcpy(msg_buffer, "{\"alarme\":\"luminosidade\", \"status\":\"ativo\"}"); break;
-                    case MSG_ALARM_LUZ_OFF: strcpy(base_topic, "alarme"); strcpy(msg_buffer, "{\"alarme\":\"luminosidade\", \"status\":\"ok\"}"); break;
-                    case MSG_LOG_HEARTBEAT: strcpy(base_topic, TOPICO_HEARTBEAT); strcpy(msg_buffer, "ok"); break;
+                    case MSG_ALARM_LUZ_ON:
+                        strcpy(base_topic, "alarme");
+                        strcpy(msg_buffer, "{\"alarme\":\"luminosidade\", \"status\":\"ativo\"}");
+                        mensagem_valida = true;
+                        break;
+                    case MSG_ALARM_LUZ_OFF:
+                        strcpy(base_topic, "alarme");
+                        strcpy(msg_buffer, "{\"alarme\":\"luminosidade\", \"status\":\"ok\"}");
+                        mensagem_valida = true;
+                        break;
+                    case MSG_LOG_HEARTBEAT:
+                        strcpy(base_topic, TOPICO_HEARTBEAT);
+                        strcpy(msg_buffer, "ok");
+                        mensagem_valida = true;
+                        break;
+                    default:
+                        break;
                 }
-                 int next_tail = (queue_tail + 1) % QUEUE_SIZE;
-                if (next_tail != queue_head) {
-                    snprintf(publication_queue[queue_tail].topico, sizeof(publication_queue[queue_tail].topico), "%s/%s", DEVICE_ID, base_topic);
-                    strncpy(publication_queue[queue_tail].mensagem, msg_buffer, sizeof(publication_queue[queue_tail].mensagem) - 1);
-                    publication_queue[queue_tail].mensagem[sizeof(publication_queue[queue_tail].mensagem) - 1] = '\0';
-                    queue_tail = next_tail;
+                if (mensagem_valida) {
+                    int next_tail = (queue_tail + 1) % QUEUE_SIZE;
+                    if (next_tail != queue_head) {
+                        snprintf(publication_queue[queue_tail].topico, sizeof(publication_queue[queue_tail].topico), "%s/%s", DEVICE_ID, base_topic);
+                        strncpy(publication_queue[queue_tail].mensagem, msg_buffer, sizeof(publication_queue[queue_tail].mensagem) - 1);
+                        publication_queue[queue_tail].mensagem[sizeof(publication_queue[queue_tail].mensagem) - 1] = '\0';
+                        queue_tail = next_tail;
+                    }
                 }
             } else if (comando >= FIFO_CMD_PUB_SENSOR_TEMP && comando <= FIFO_CMD_PUB_SENSOR_LUZ) {
                 uint16_t valor_int = pacote & 0xFFFF;
