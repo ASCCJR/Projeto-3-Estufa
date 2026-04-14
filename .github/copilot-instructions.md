@@ -29,6 +29,7 @@ Garantir que o projeto:
 ## Fluxo que a IA deve seguir
 
 0. Validar configuracao local obrigatoria (`secrets.local.h` e `configura_local.h`).
+0.5. Executar preflight automatizado (`powershell -ExecutionPolicy Bypass -File .\scripts\preflight-demo.ps1`).
 1. Detectar ferramentas instaladas.
 2. Instalar somente o que faltar.
 3. Validar versoes e servicos.
@@ -45,6 +46,18 @@ Garantir que o projeto:
   - `configura_local.example.h` -> `configura_local.h`
 - Antes de tentar conexao Wi-Fi/MQTT real, confirmar que `secrets.local.h` nao esta com placeholders.
 - Se houver placeholder, pedir ao usuario SSID/senha e IP/porta do broker para preencher os arquivos locais.
+
+## Passo 0.5: Preflight automatizado (obrigatorio)
+
+- Executar no terminal do projeto:
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\preflight-demo.ps1`
+- O script deve ser tratado como gate de entrada e precisa sair com sucesso antes de build/flash.
+- O script valida e corrige itens recorrentes de ambiente:
+  - cria arquivos locais ausentes a partir dos templates;
+  - atualiza `configura_local.h` com IP Wi-Fi atual e porta 1884;
+  - garante broker local em 1884 e testa publish/subscribe;
+  - inicia Node-RED quando nao estiver ativo em 1880.
+- Se qualquer etapa retornar FAIL, interromper o fluxo e corrigir antes de prosseguir.
 
 ## Passo 1: Deteccao inicial (Windows)
 
